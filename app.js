@@ -12,6 +12,11 @@ var users = require('./routes/users');
 
 var app = express();
 
+var dev_config = require('./config/env/development');
+
+// initialize Mongoose
+require('./config/model-loader').initMongooseAndLoadModel(app, dev_config.mongodb);
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
