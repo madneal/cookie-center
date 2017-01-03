@@ -7,6 +7,7 @@ var Schema = mongoose.Schema;
 var starProject_model = mongoose.model('starProjects');
 
 
+var arr = [];
 
 var sendrequest = function (config) {
 	var websites = config.websites;
@@ -35,14 +36,13 @@ exports.sendrequest = sendrequest;
  */
 var parser = function (body) {
 	var $ = cheerio.load(body);
+	var that = $;
 	var result = $('.js-repo-filter .col-12');
-	var arr = [];
 	var i = 0;
 	result.each(function(i, elem) {
-		// console.log($(this).text());
-		// var obj = {};
-		if (i == 0) {
 			$ = cheerio.load($(this).html());
+
+			//obtain owner and project name
 			var ownerAndName = $('.d-inline-block a').text().trim();
 			var owner;
 			var projectName;
@@ -50,8 +50,9 @@ var parser = function (body) {
 				owner = ownerAndName.split(' / ')[0] || '';
 				projectName = ownerAndName.split(' / ')[1] || '';
 			}
-			var str = $('.f6 a').text();
 
+			// obtain star and fork number string
+			var str = $('.f6 a').text();
 			if (str) {
 				str = str.trim().replace(/\s+/g,' ');
 				var starNum = str.split(' ')[0].replace(/\,/g,'');
@@ -64,19 +65,16 @@ var parser = function (body) {
 				lan,
 				starNum,
 				forkNum,
-				// projectUpdatedTime
 			};
 			console.dir(obj);
-		}
-
-		// console.log('project owner: ' + $('.d-inline-block a span').text());
-		// console.log('project name: ' + $('.d-inline-block a').text());
-		// console.log('star and forks: ' + $('.f6').text());
-
-	})
-	// console.log(result);
-	// console.dir(result[0]);
-	fs.writeFile('1.html', body);
+			arr.push(obj);
+	});
+	var github_url = 'https://github.com';
+	var next_url = that('.next_page').attr('href');
+	if (next_url) {
+		config.url = github_url + next_url;
+		sendrequest(config);
+	}
 };
 
 var getLocalDate = function() {
@@ -90,18 +88,20 @@ var getLocalDate = function() {
 };
 
 var saveModel = function(result) {
-	for (var i = 0; i < result.length; i++) {
-		result[i].updateTime = getLocalDate();
-		starProject_model.update(
-			result[i], {
-				upsert: true
-			}, function(err, res) {
-				if (err) {
-					console.log(err);
-				}
-			}
-		)
-	}
+	// for (var i = 0; i < result.length; i++) {
+	// 	result[i].updateTime = getLocalDate();
+	// 	starProject_model.update(
+	// 		result[i], {
+	// 			upsert: true
+	// 		}, function(err, res) {
+	// 			if (err) {
+	// 				console.log(err);
+	// 			}
+	// 		}
+	// 	)
+	// }
+	result = {result: result};
+	fs.writeFile('result.json', result);
 }
 
 
