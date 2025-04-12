@@ -6,7 +6,7 @@
  * license terms for those products.
  */
 
-package main.java.com.madneal.cookiecenter;
+package com.madneal.cookiecenter;
 
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.ui.editor.extension.EditorCreationContext;

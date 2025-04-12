@@ -5,8 +5,7 @@
  * and Burp Suite Professional, provided that this usage does not violate the
  * license terms for those products.
  */
-
-package main.java.com.madneal.cookiecenter;
+package com.madneal.cookiecenter;
 
 import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.core.ByteArray;
