@@ -24,7 +24,7 @@ public class BurpExtender implements BurpExtension {
         api.logging().logToOutput("Extension loading...");
 
         configManager = new ConfigManager(api);
-        configPanel = new ConfigPanel(configManager);
+        configPanel = new ConfigPanel(api);
 
         api.userInterface().registerSuiteTab("Cookie Center", configPanel);
         api.logging().logToOutput("Extension initialized");
