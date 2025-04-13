@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CookieTableModel extends AbstractTableModel {
-    private final String[] columnNames = {"Host", "Cookie Value"};
+    private final String[] columnNames = {"Host", "Cookie"};
     private final List<CookieEntry> entries = new ArrayList<>();
 
     @Override

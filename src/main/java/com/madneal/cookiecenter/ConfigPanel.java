@@ -4,6 +4,7 @@ import burp.api.montoya.MontoyaApi;
 import burp.api.montoya.persistence.PersistedObject;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,21 +19,27 @@ public class ConfigPanel extends JPanel {
         this.tableModel = new CookieTableModel();
         this.table = new JTable(tableModel);
 
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout(0, 10));
+        setBorder(new EmptyBorder(15, 15, 15, 15));
 
         // Create table
         JScrollPane scrollPane = new JScrollPane(table);
         table.setFillsViewportHeight(true);
 
         // Create button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        buttonPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, Color.LIGHT_GRAY),
+                new EmptyBorder(5, 0, 10, 0)
+        ));
 
         JButton addButton = new JButton("Add");
-        addButton.addActionListener(e -> {
-            tableModel.addEntry(new CookieEntry("example.com", "sessionid=value"));
-            int lastRow = tableModel.getRowCount() - 1;
-            table.setRowSelectionInterval(lastRow, lastRow);
-        });
+        addButton.addActionListener(e -> showAddDialog());
+
+        JButton importCurlButton = new JButton("Import from curl");
+        importCurlButton.setToolTipText("Extract host and cookie from a curl command");
+        importCurlButton.addActionListener(e -> importFromCurl());
 
         JButton removeButton = new JButton("Remove");
         removeButton.addActionListener(e -> {
@@ -40,20 +47,34 @@ public class ConfigPanel extends JPanel {
             tableModel.removeEntry(selectedRow);
         });
 
-        JButton saveButton = new JButton("Save");
-        saveButton.addActionListener(e -> saveConfiguration());
-
         buttonPanel.add(addButton);
+        buttonPanel.add(importCurlButton);
         buttonPanel.add(removeButton);
-        buttonPanel.add(saveButton);
 
-        // Add components to panel
-        add(new JLabel("Configure host-specific cookie values:"), BorderLayout.NORTH);
         add(scrollPane, BorderLayout.CENTER);
-        add(buttonPanel, BorderLayout.SOUTH);
+        add(buttonPanel, BorderLayout.NORTH);
+
+        tableModel.addTableModelListener(e -> saveConfiguration());
 
         // Load saved entries
         loadSavedEntries();
+    }
+
+    private void showAddDialog() {
+        Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(this);
+        AddCookieDialog dialog = new AddCookieDialog(parentFrame);
+        dialog.setVisible(true);
+
+        if (dialog.isConfirmed()) {
+            String host = dialog.getHost();
+            String cookie = dialog.getCookie();
+
+            if (!host.isEmpty() && !cookie.isEmpty()) {
+                tableModel.addEntry(new CookieEntry(host, cookie));
+                int lastRow = tableModel.getRowCount() - 1;
+                table.setRowSelectionInterval(lastRow, lastRow);
+            }
+        }
     }
 
     private void saveConfiguration() {
@@ -71,6 +92,37 @@ public class ConfigPanel extends JPanel {
         }
 
         JOptionPane.showMessageDialog(this, "Configuration saved successfully");
+    }
+
+    private void importFromCurl() {
+        // Get the parent frame for the dialog
+        Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(this);
+
+        // Create and show the curl import dialog
+        CurlImportDialog dialog = new CurlImportDialog(parentFrame);
+        dialog.setVisible(true);
+
+        // If the user confirmed the import and we have data
+        if (dialog.isConfirmed()) {
+            String host = dialog.getExtractedHost();
+            String cookie = dialog.getExtractedCookie();
+
+            if (!host.isEmpty() && !cookie.isEmpty()) {
+                // Add the extracted entry to the table
+                tableModel.addEntry(new CookieEntry(host, cookie));
+
+                // Select the new entry
+                int lastRow = tableModel.getRowCount() - 1;
+                table.setRowSelectionInterval(lastRow, lastRow);
+                table.scrollRectToVisible(table.getCellRect(lastRow, 0, true));
+
+                // Show success message
+                JOptionPane.showMessageDialog(this,
+                        "Successfully imported:\nHost: " + host + "\nCookie: " + cookie,
+                        "Import Successful",
+                        JOptionPane.INFORMATION_MESSAGE);
+            }
+        }
     }
 
     private void loadSavedEntries() {
