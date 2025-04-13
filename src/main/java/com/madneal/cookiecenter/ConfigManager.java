@@ -1,13 +1,15 @@
 package com.madneal.cookiecenter;
 
-import burp.IBurpExtenderCallbacks;
+import burp.api.montoya.MontoyaApi;
+import burp.api.montoya.persistence.PersistedObject;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public class ConfigManager {
-    private final IBurpExtenderCallbacks callbacks;
+    private final MontoyaApi api;
     private final Map<String, String> configValues;
+    private final PersistedObject settings;
 
     // Constants for configuration keys
     public static final String API_KEY = "api_key";
@@ -15,21 +17,23 @@ public class ConfigManager {
     public static final String ENABLE_FEATURE = "enable_feature";
     public static final String TIMEOUT_MS = "timeout_ms";
 
-    public ConfigManager(IBurpExtenderCallbacks callbacks) {
-        this.callbacks = callbacks;
+    public ConfigManager(MontoyaApi api) {
+        this.api = api;
         this.configValues = new HashMap<>();
 
-        // Load saved settings from Burp's persistent storage
+        // Get the persisted object for our extension
+        this.settings = api.persistence().extensionData();
+
+        // Load saved settings
         loadSettings();
     }
 
-    // Load settings from Burp's persistent storage
     private void loadSettings() {
         // Retrieve settings for each key
-        String apiKey = callbacks.loadExtensionSetting(API_KEY);
-        String apiUrl = callbacks.loadExtensionSetting(API_URL);
-        String enableFeature = callbacks.loadExtensionSetting(ENABLE_FEATURE);
-        String timeoutMs = callbacks.loadExtensionSetting(TIMEOUT_MS);
+        String apiKey = settings.getString(API_KEY);
+        String apiUrl = settings.getString(API_URL);
+        String enableFeature = settings.getString(ENABLE_FEATURE);
+        String timeoutMs = settings.getString(TIMEOUT_MS);
 
         // Initialize default values if not found
         if (apiKey != null) configValues.put(API_KEY, apiKey);
@@ -41,24 +45,20 @@ public class ConfigManager {
         else configValues.put(TIMEOUT_MS, "5000"); // Default 5 seconds
     }
 
-    // Save a specific setting
     public void saveSetting(String key, String value) {
         configValues.put(key, value);
-        callbacks.saveExtensionSetting(key, value);
+        settings.setString(key, value);
     }
 
-    // Get a specific setting
     public String getSetting(String key) {
         return configValues.get(key);
     }
 
-    // Get boolean setting
     public boolean getBooleanSetting(String key) {
         String value = configValues.get(key);
         return "true".equalsIgnoreCase(value);
     }
 
-    // Get integer setting
     public int getIntSetting(String key, int defaultValue) {
         String value = configValues.get(key);
         try {

@@ -108,7 +108,7 @@ class MyExtensionProvidedHttpRequestEditor implements ExtensionProvidedHttpReque
     @Override
     public String caption()
     {
-        return "Serialized input";
+        return "Cookie Center";
     }
 
     @Override
