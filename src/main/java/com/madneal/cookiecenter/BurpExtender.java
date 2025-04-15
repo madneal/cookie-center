@@ -18,6 +18,7 @@ public class BurpExtender implements BurpExtension {
     private ConfigManager configManager;
     private CookieTableModel cookieTableModel;
 
+
     @Override
     public void initialize(MontoyaApi api) {
         this.api = api;
@@ -27,8 +28,11 @@ public class BurpExtender implements BurpExtension {
 
         configManager = new ConfigManager(api);
         configPanel = new ConfigPanel(api);
+        this.cookieTableModel = new CookieTableModel();
+        configPanel.setTableModel(cookieTableModel);
+        configPanel.loadSavedEntries();
 
-        HttpHandler cookieInjector = new CookieInjector(cookieTableModel);
+        HttpHandler cookieInjector = new CookieInjector(cookieTableModel, api);
         api.http().registerHttpHandler(cookieInjector);
 
         api.userInterface().registerSuiteTab("Cookie Center", configPanel);

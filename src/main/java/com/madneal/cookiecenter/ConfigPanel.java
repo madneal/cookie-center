@@ -11,7 +11,7 @@ import java.util.List;
 
 public class ConfigPanel extends JPanel {
     private final MontoyaApi api;
-    private final CookieTableModel tableModel;
+    private  CookieTableModel tableModel;
     private final JTable table;
 
     public ConfigPanel(MontoyaApi api) {
@@ -60,6 +60,14 @@ public class ConfigPanel extends JPanel {
         loadSavedEntries();
     }
 
+    public CookieTableModel getTableModel() {
+        return tableModel;
+    }
+
+    public void setTableModel(CookieTableModel tableModel) {
+        this.tableModel = tableModel;
+    }
+
     private void showAddDialog() {
         Frame parentFrame = (Frame) SwingUtilities.getWindowAncestor(this);
         AddCookieDialog dialog = new AddCookieDialog(parentFrame);
@@ -90,8 +98,6 @@ public class ConfigPanel extends JPanel {
             settings.setString("host_" + i, entry.getHost());
             settings.setString("cookie_" + i, entry.getCookieValue());
         }
-
-        JOptionPane.showMessageDialog(this, "Configuration saved successfully");
     }
 
     private void importFromCurl() {
@@ -125,7 +131,7 @@ public class ConfigPanel extends JPanel {
         }
     }
 
-    private void loadSavedEntries() {
+    public void loadSavedEntries() {
         PersistedObject settings = api.persistence().extensionData();
         int count = 0;
         try {
