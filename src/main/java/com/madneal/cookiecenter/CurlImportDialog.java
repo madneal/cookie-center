@@ -87,26 +87,26 @@ public class CurlImportDialog extends JDialog {
             }
         }
 
-        // Extract cookie from headers
-        String cookiePattern = "-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]";
-        Pattern cookieRegex = Pattern.compile(cookiePattern);
-        Matcher cookieMatcher = cookieRegex.matcher(curlCommand);
+        String[][] cookiePatterns = {
+                {"-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]", "header cookie"},
+                {"--cookie\\s+['\"]([^'\"]+)['\"]", "long-form cookie"},
+                {"-b\\s+['\"]([^'\"]+)['\"]", "short-form cookie"}
+        };
 
-        if (cookieMatcher.find()) {
-            extractedCookie = cookieMatcher.group(1).trim();
-        } else {
-            // Try alternative pattern with --cookie
-            Pattern altCookiePattern = Pattern.compile("--cookie\\s+['\"]([^'\"]+)['\"]");
-            Matcher altCookieMatcher = altCookiePattern.matcher(curlCommand);
-            if (altCookieMatcher.find()) {
-                extractedCookie = altCookieMatcher.group(1).trim();
-            } else {
-                showError("Could not find cookie header in the curl command.");
-                return false;
+        // Try each pattern until we find a match
+        for (String[] patternInfo : cookiePatterns) {
+            Pattern pattern = Pattern.compile(patternInfo[0]);
+            Matcher matcher = pattern.matcher(curlCommand);
+
+            if (matcher.find()) {
+                extractedCookie = matcher.group(1).trim();
+                return true;
             }
         }
 
-        return true;
+        // No cookie found after trying all patterns
+        showError("Could not find cookie header in the curl command.");
+        return false;
     }
 
     private void showError(String message) {
