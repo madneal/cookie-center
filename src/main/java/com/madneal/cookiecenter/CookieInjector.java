@@ -33,8 +33,8 @@ public class CookieInjector implements HttpHandler {
         if (matchingEntry != null) {
             String cookieValue = matchingEntry.getCookieValue();
             api.logging().logToOutput("Added new cookie: " + cookieValue);
-            var httpService = requestToBeSent.httpService();
-            var modifiedRequest = requestToBeSent.withService(httpService).withAddedHeader("Cookie", cookieValue);
+            HttpRequest modifiedRequest = requestToBeSent.withRemovedHeader("Cookie")
+                    .withAddedHeader("Cookie", cookieValue);
             api.logging().logToOutput("Final modified request: " + modifiedRequest);
             duplicateWithCookie(modifiedRequest);
             return RequestToBeSentAction.continueWith(modifiedRequest);

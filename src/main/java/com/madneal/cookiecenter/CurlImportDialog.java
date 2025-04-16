@@ -25,8 +25,7 @@ public class CurlImportDialog extends JDialog {
 
         // Create instruction label
         JLabel instructionLabel = new JLabel(
-                "Paste a curl command to extract host and cookie values." + System.lineSeparator() +
-                        "The command should contain a URL and cookie header.");
+                "Paste a curl command to extract host and cookie values.");
         instructionLabel.setBorder(new EmptyBorder(10, 10, 5, 10));
 
         // Create text area for curl command
