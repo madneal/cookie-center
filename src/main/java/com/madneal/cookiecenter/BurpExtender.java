@@ -15,7 +15,6 @@ import burp.api.montoya.http.handler.HttpHandler;
 public class BurpExtender implements BurpExtension {
     private MontoyaApi api;
     private ConfigPanel configPanel;
-    private ConfigManager configManager;
     private CookieTableModel cookieTableModel;
 
 
@@ -26,7 +25,6 @@ public class BurpExtender implements BurpExtension {
         api.extension().setName("Cookie Center");
         api.logging().logToOutput("Extension loading...");
 
-        configManager = new ConfigManager(api);
         configPanel = new ConfigPanel(api);
         this.cookieTableModel = new CookieTableModel();
         configPanel.setTableModel(cookieTableModel);
