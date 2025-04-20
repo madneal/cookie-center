@@ -25,7 +25,8 @@ public class CurlImportDialog extends JDialog {
 
         // Create instruction label
         JLabel instructionLabel = new JLabel(
-                "Paste a curl command to extract host and cookie values.");
+                "<html>Paste a curl command to extract host and cookie values.<br/>" +
+                        "The command should contain a URL and cookie header.</html>");
         instructionLabel.setBorder(new EmptyBorder(10, 10, 5, 10));
 
         // Create text area for curl command
@@ -86,26 +87,26 @@ public class CurlImportDialog extends JDialog {
             }
         }
 
-        String[][] cookiePatterns = {
-                {"-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]", "header cookie"},
-                {"--cookie\\s+['\"]([^'\"]+)['\"]", "long-form cookie"},
-                {"-b\\s+['\"]([^'\"]+)['\"]", "short-form cookie"}
-        };
+        // Extract cookie from headers
+        String cookiePattern = "-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]";
+        Pattern cookieRegex = Pattern.compile(cookiePattern);
+        Matcher cookieMatcher = cookieRegex.matcher(curlCommand);
 
-        // Try each pattern until we find a match
-        for (String[] patternInfo : cookiePatterns) {
-            Pattern pattern = Pattern.compile(patternInfo[0]);
-            Matcher matcher = pattern.matcher(curlCommand);
-
-            if (matcher.find()) {
-                extractedCookie = matcher.group(1).trim();
-                return true;
+        if (cookieMatcher.find()) {
+            extractedCookie = cookieMatcher.group(1).trim();
+        } else {
+            // Try alternative pattern with --cookie
+            Pattern altCookiePattern = Pattern.compile("--cookie\\s+['\"]([^'\"]+)['\"]");
+            Matcher altCookieMatcher = altCookiePattern.matcher(curlCommand);
+            if (altCookieMatcher.find()) {
+                extractedCookie = altCookieMatcher.group(1).trim();
+            } else {
+                showError("Could not find cookie header in the curl command.");
+                return false;
             }
         }
 
-        // No cookie found after trying all patterns
-        showError("Could not find cookie header in the curl command.");
-        return false;
+        return true;
     }
 
     private void showError(String message) {
