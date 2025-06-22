@@ -25,18 +25,15 @@ public class CurlImportDialog extends JDialog {
 
         // Create instruction label
         JLabel instructionLabel = new JLabel(
-                "<html>Paste a curl command to extract host and cookie values.<br/>" +
-                        "The command should contain a URL and cookie header.</html>");
+                "Paste a curl command to extract host and cookie values.");
         instructionLabel.setBorder(new EmptyBorder(10, 10, 5, 10));
 
-        // Create text area for curl command
         curlTextArea = new JTextArea();
         curlTextArea.setLineWrap(true);
         curlTextArea.setWrapStyleWord(true);
         JScrollPane scrollPane = new JScrollPane(curlTextArea);
         scrollPane.setBorder(new EmptyBorder(0, 10, 0, 10));
 
-        // Create button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.setBorder(new EmptyBorder(5, 10, 10, 10));
 
@@ -68,45 +65,33 @@ public class CurlImportDialog extends JDialog {
             return false;
         }
 
-        // Extract host from URL
-        String hostPattern = "(?:curl\\s+(?:-X\\s+[A-Z]+\\s+)?['\"](https?://)?([^/'\"]+))?";
-        Pattern hostRegex = Pattern.compile(hostPattern);
-        Matcher hostMatcher = hostRegex.matcher(curlCommand);
+        // Extract host from URL with a single, more robust pattern
+        Pattern hostPattern = Pattern.compile("curl\\s+(?:.*?\\s+)?(?:https?://)?([^/\\s'\"]+)");
+        Matcher hostMatcher = hostPattern.matcher(curlCommand);
 
-        if (hostMatcher.find() && hostMatcher.group(2) != null) {
-            extractedHost = hostMatcher.group(2);
+        if (hostMatcher.find()) {
+            extractedHost = hostMatcher.group(1);
         } else {
-            // Try alternative pattern for different curl syntax
-            Pattern altHostPattern = Pattern.compile("(?:curl\\s+(?:-X\\s+[A-Z]+\\s+)?(?:https?://)?([^/\\s]+))");
-            Matcher altHostMatcher = altHostPattern.matcher(curlCommand);
-            if (altHostMatcher.find() && altHostMatcher.group(1) != null) {
-                extractedHost = altHostMatcher.group(1);
-            } else {
-                showError("Could not find host in the curl command.");
-                return false;
-            }
+            showError("Could not find host in the curl command.");
+            return false;
         }
 
-        // Extract cookie from headers
-        String cookiePattern = "-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]";
-        Pattern cookieRegex = Pattern.compile(cookiePattern);
-        Matcher cookieMatcher = cookieRegex.matcher(curlCommand);
+        // Extract cookie with a unified pattern that supports -H "Cookie:", --cookie, and -b
+        Pattern cookiePattern = Pattern.compile("(?:-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]|--cookie\\s+['\"]([^'\"]+)['\"]|-b\\s+['\"]([^'\"]+)['\"])");
+        Matcher cookieMatcher = cookiePattern.matcher(curlCommand);
 
         if (cookieMatcher.find()) {
-            extractedCookie = cookieMatcher.group(1).trim();
-        } else {
-            // Try alternative pattern with --cookie
-            Pattern altCookiePattern = Pattern.compile("--cookie\\s+['\"]([^'\"]+)['\"]");
-            Matcher altCookieMatcher = altCookiePattern.matcher(curlCommand);
-            if (altCookieMatcher.find()) {
-                extractedCookie = altCookieMatcher.group(1).trim();
-            } else {
-                showError("Could not find cookie header in the curl command.");
-                return false;
-            }
-        }
+            // Get the first non-null group from the three capturing groups
+            extractedCookie = cookieMatcher.group(1) != null ? cookieMatcher.group(1) :
+                    cookieMatcher.group(2) != null ? cookieMatcher.group(2) :
+                            cookieMatcher.group(3);
 
-        return true;
+            extractedCookie = extractedCookie.trim();
+            return true;
+        } else {
+            showError("Could not find cookie header in the curl command.");
+            return false;
+        }
     }
 
     private void showError(String message) {
