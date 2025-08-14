@@ -65,31 +65,79 @@ public class CurlImportDialog extends JDialog {
             return false;
         }
 
-        // Extract host from URL with a single, more robust pattern
-        Pattern hostPattern = Pattern.compile("curl\\s+(?:.*?\\s+)?(?:https?://)?([^/\\s'\"]+)");
-        Matcher hostMatcher = hostPattern.matcher(curlCommand);
+        // Debug: Log the curl command being parsed
+        System.out.println("Parsing curl command: " + curlCommand);
 
-        if (hostMatcher.find()) {
-            extractedHost = hostMatcher.group(1);
+        // Extract host from URL - completely rewritten approach
+        // First, find the URL pattern in the curl command
+        Pattern urlPattern = Pattern.compile("https?://([^/\\s'\"]+)");
+        Matcher urlMatcher = urlPattern.matcher(curlCommand);
+
+        if (urlMatcher.find()) {
+            extractedHost = urlMatcher.group(1);
+            // Remove any trailing dots or invalid characters
+            extractedHost = extractedHost.replaceAll("[.]$", "");
+            
+            // Additional validation: make sure we didn't extract a cookie value as host
+            if (extractedHost.contains("=") || extractedHost.contains(";")) {
+                // This looks like a cookie value, not a host
+                showError("Host extraction failed. The extracted value looks like a cookie: " + extractedHost + 
+                         "\n\nPlease check your curl command format.");
+                return false;
+            }
+            
+            System.out.println("Extracted host: " + extractedHost);
         } else {
-            showError("Could not find host in the curl command.");
+            showError("Could not find a valid URL in the curl command.\n\nMake sure the URL starts with http:// or https://");
             return false;
         }
 
-        // Extract cookie with a unified pattern that supports -H "Cookie:", --cookie, and -b
-        Pattern cookiePattern = Pattern.compile("(?:-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]|--cookie\\s+['\"]([^'\"]+)['\"]|-b\\s+['\"]([^'\"]+)['\"])");
+        // Extract cookie with improved pattern that handles various formats
+        // Pattern 1: -H "Cookie: value"
+        // Pattern 2: -H 'Cookie: value'
+        // Pattern 3: --cookie "value"
+        // Pattern 4: --cookie 'value'
+        // Pattern 5: -b "value"
+        // Pattern 6: -b 'value'
+        Pattern cookiePattern = Pattern.compile(
+            "(?:-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]|" +
+            "-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]|" +
+            "--cookie\\s+['\"]([^'\"]+)['\"]|" +
+            "--cookie\\s+['\"]([^'\"]+)['\"]|" +
+            "-b\\s+['\"]([^'\"]+)['\"]|" +
+            "-b\\s+['\"]([^'\"]+)['\"])"
+        );
         Matcher cookieMatcher = cookiePattern.matcher(curlCommand);
 
         if (cookieMatcher.find()) {
-            // Get the first non-null group from the three capturing groups
-            extractedCookie = cookieMatcher.group(1) != null ? cookieMatcher.group(1) :
-                    cookieMatcher.group(2) != null ? cookieMatcher.group(2) :
-                            cookieMatcher.group(3);
-
-            extractedCookie = extractedCookie.trim();
+            // Get the first non-null group from the capturing groups
+            for (int i = 1; i <= cookieMatcher.groupCount(); i++) {
+                if (cookieMatcher.group(i) != null) {
+                    extractedCookie = cookieMatcher.group(i).trim();
+                    System.out.println("Extracted cookie: " + extractedCookie);
+                    break;
+                }
+            }
+            
+            if (extractedCookie.isEmpty()) {
+                showError("Could not extract cookie value from the curl command.");
+                return false;
+            }
+            
+            // Show success message with extracted values
+            JOptionPane.showMessageDialog(this,
+                "Successfully extracted:\n\nHost: " + extractedHost + "\nCookie: " + extractedCookie,
+                "Extraction Successful",
+                JOptionPane.INFORMATION_MESSAGE);
+            
             return true;
         } else {
-            showError("Could not find cookie header in the curl command.");
+            showError("Could not find cookie header in the curl command.\n\n" +
+                     "Supported formats:\n" +
+                     "-H \"Cookie: session_id=abc123; user_token=xyz456\"\n" +
+                     "--cookie \"session_id=abc123; user_token=xyz456\"\n" +
+                     "-b \"session_id=abc123; user_token=xyz456\"\n\n" +
+                     "Your command: " + curlCommand);
             return false;
         }
     }
