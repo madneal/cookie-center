@@ -1,14 +1,32 @@
-Custom Request Editor Tab Example Extension
-============================
+# Cookie Center
 
-###### Adds a new tab to Burp's HTTP message editor, in order to handle a data serialization format
+Cookie Center is a Burp Suite extension for managing request cookies by host.
 
- ---
+## Features
 
-This extension provides a new tab on the message editor for requests that contain a specified parameter.
+- Store one cookie header value per host.
+- Enable or disable entries without deleting them.
+- Choose whether an entry also applies to subdomains.
+- Import host and cookie values from common curl command formats.
+- Replace existing entries for the same host instead of creating duplicates.
+- Automatically inject the best matching cookie into outgoing requests.
+- Persist entries in Burp extension data.
 
-The extension uses the following techniques:
-- It creates a custom request tab on the message editor, provided that the `data` parameter is present
-- If it is appropriate, the editor is set to be read-only
-- The value of the `data` parameter is deserialized (URL decoded, then Base64 decoded) and displayed in the custom tab
-- If the value of the data is modified, the content will be re-serialized (Base64 encoded then URL encoded) and updated in the HttpRequest
+## Matching Rules
+
+Cookie Center normalizes hosts to lowercase and strips trailing dots. For each outgoing request:
+
+1. Disabled entries are ignored.
+2. Exact host matches are allowed.
+3. Subdomain matches are allowed only when the entry's `Subdomains` checkbox is selected.
+4. When more than one entry matches, the most specific host wins.
+
+For example, if both `example.com` and `api.example.com` match `api.example.com`, the `api.example.com` entry is used.
+
+## Build
+
+```bash
+./gradlew build
+```
+
+The extension jar is generated under `build/libs/`.

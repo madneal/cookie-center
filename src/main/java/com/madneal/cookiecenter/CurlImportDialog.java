@@ -3,6 +3,8 @@ package com.madneal.cookiecenter;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -58,77 +60,48 @@ public class CurlImportDialog extends JDialog {
     }
 
     private boolean parseCurlCommand() {
-        String curlCommand = curlTextArea.getText().trim();
+        String curlCommand = curlTextArea.getText().trim()
+                .replace("\\\r\n", " ")
+                .replace("\\\n", " ")
+                .replace('\r', ' ')
+                .replace('\n', ' ');
 
         if (curlCommand.isEmpty()) {
             showError("Please enter a curl command.");
             return false;
         }
 
-        // Debug: Log the curl command being parsed
-        System.out.println("Parsing curl command: " + curlCommand);
-
-        // Extract host from URL - completely rewritten approach
-        // First, find the URL pattern in the curl command
-        Pattern urlPattern = Pattern.compile("https?://([^/\\s'\"]+)");
+        Pattern urlPattern = Pattern.compile("https?://[^\\s'\"]+");
         Matcher urlMatcher = urlPattern.matcher(curlCommand);
 
         if (urlMatcher.find()) {
-            extractedHost = urlMatcher.group(1);
-            // Remove any trailing dots or invalid characters
-            extractedHost = extractedHost.replaceAll("[.]$", "");
+            extractedHost = extractHost(urlMatcher.group());
             
-            // Additional validation: make sure we didn't extract a cookie value as host
-            if (extractedHost.contains("=") || extractedHost.contains(";")) {
-                // This looks like a cookie value, not a host
+            if (extractedHost.isEmpty() || extractedHost.contains("=") || extractedHost.contains(";")) {
                 showError("Host extraction failed. The extracted value looks like a cookie: " + extractedHost + 
                          "\n\nPlease check your curl command format.");
                 return false;
             }
-            
-            System.out.println("Extracted host: " + extractedHost);
         } else {
             showError("Could not find a valid URL in the curl command.\n\nMake sure the URL starts with http:// or https://");
             return false;
         }
 
-        // Extract cookie with improved pattern that handles various formats
-        // Pattern 1: -H "Cookie: value"
-        // Pattern 2: -H 'Cookie: value'
-        // Pattern 3: --cookie "value"
-        // Pattern 4: --cookie 'value'
-        // Pattern 5: -b "value"
-        // Pattern 6: -b 'value'
         Pattern cookiePattern = Pattern.compile(
-            "(?:-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]|" +
-            "-H\\s+['\"]Cookie:\\s*([^'\"]+)['\"]|" +
-            "--cookie\\s+['\"]([^'\"]+)['\"]|" +
-            "--cookie\\s+['\"]([^'\"]+)['\"]|" +
-            "-b\\s+['\"]([^'\"]+)['\"]|" +
-            "-b\\s+['\"]([^'\"]+)['\"])"
+                "(?:-(?:H)|--header)\\s+(['\"])(?i:Cookie)\\s*:\\s*(.*?)\\1|" +
+                "(?:--cookie|-b)\\s+(['\"])(.*?)\\3"
         );
         Matcher cookieMatcher = cookiePattern.matcher(curlCommand);
 
         if (cookieMatcher.find()) {
-            // Get the first non-null group from the capturing groups
-            for (int i = 1; i <= cookieMatcher.groupCount(); i++) {
-                if (cookieMatcher.group(i) != null) {
-                    extractedCookie = cookieMatcher.group(i).trim();
-                    System.out.println("Extracted cookie: " + extractedCookie);
-                    break;
-                }
-            }
+            extractedCookie = cookieMatcher.group(2) != null
+                    ? cookieMatcher.group(2).trim()
+                    : cookieMatcher.group(4).trim();
             
             if (extractedCookie.isEmpty()) {
                 showError("Could not extract cookie value from the curl command.");
                 return false;
             }
-            
-            // Show success message with extracted values
-            JOptionPane.showMessageDialog(this,
-                "Successfully extracted:\n\nHost: " + extractedHost + "\nCookie: " + extractedCookie,
-                "Extraction Successful",
-                JOptionPane.INFORMATION_MESSAGE);
             
             return true;
         } else {
@@ -140,6 +113,37 @@ public class CurlImportDialog extends JDialog {
                      "Your command: " + curlCommand);
             return false;
         }
+    }
+
+    private String extractHost(String url) {
+        try {
+            URI uri = new URI(url);
+            String host = uri.getHost();
+            if (host != null) {
+                return CookieCenter.normalizeHost(host);
+            }
+
+            String authority = uri.getRawAuthority();
+            if (authority != null) {
+                int atIndex = authority.lastIndexOf('@');
+                if (atIndex >= 0) {
+                    authority = authority.substring(atIndex + 1);
+                }
+                int portIndex = authority.lastIndexOf(':');
+                if (portIndex > -1 && authority.indexOf(':') == portIndex) {
+                    authority = authority.substring(0, portIndex);
+                }
+                return CookieCenter.normalizeHost(authority);
+            }
+        } catch (URISyntaxException ignored) {
+            // Fall back to regex extraction below.
+        }
+
+        Matcher fallbackMatcher = Pattern.compile("https?://([^/\\s'\"]+)").matcher(url);
+        if (!fallbackMatcher.find()) {
+            return "";
+        }
+        return CookieCenter.normalizeHost(fallbackMatcher.group(1));
     }
 
     private void showError(String message) {

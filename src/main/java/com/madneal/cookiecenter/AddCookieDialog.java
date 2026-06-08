@@ -4,8 +4,9 @@ import javax.swing.*;
 import java.awt.*;
 
 public class AddCookieDialog extends JDialog {
-    private JTextField hostField = new JTextField(20);
-    private JTextField cookieField = new JTextField(20);
+    private final JTextField hostField = new JTextField(30);
+    private final JTextArea cookieField = new JTextArea(5, 30);
+    private final JCheckBox includeSubdomainsCheckBox = new JCheckBox("Use for subdomains", true);
     private boolean confirmed = false;
 
     public AddCookieDialog(Frame owner) {
@@ -35,16 +36,23 @@ public class AddCookieDialog extends JDialog {
         mainPanel.add(hostPanel);
         mainPanel.add(Box.createVerticalStrut(10));
 
-        // Cookie field with improved layout
         JPanel cookiePanel = new JPanel();
-        cookiePanel.setLayout(new BoxLayout(cookiePanel, BoxLayout.X_AXIS));
+        cookiePanel.setLayout(new BorderLayout(5, 0));
         cookiePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel cookieLabel = new JLabel("Cookie:");
         cookieLabel.setPreferredSize(new Dimension(80, cookieLabel.getPreferredSize().height));
-        cookiePanel.add(cookieLabel);
-        cookiePanel.add(Box.createHorizontalStrut(5));
-        cookiePanel.add(cookieField);
+        cookiePanel.add(cookieLabel, BorderLayout.WEST);
+        cookieField.setLineWrap(true);
+        cookieField.setWrapStyleWord(true);
+        cookiePanel.add(new JScrollPane(cookieField), BorderLayout.CENTER);
         mainPanel.add(cookiePanel);
+        mainPanel.add(Box.createVerticalStrut(8));
+
+        JPanel optionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        optionPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        optionPanel.add(Box.createHorizontalStrut(85));
+        optionPanel.add(includeSubdomainsCheckBox);
+        mainPanel.add(optionPanel);
         mainPanel.add(Box.createVerticalStrut(15));
 
         // Buttons with improved layout
@@ -100,5 +108,9 @@ public class AddCookieDialog extends JDialog {
 
     public String getCookie() {
         return cookieField.getText().trim();
+    }
+
+    public boolean isIncludeSubdomains() {
+        return includeSubdomainsCheckBox.isSelected();
     }
 }
