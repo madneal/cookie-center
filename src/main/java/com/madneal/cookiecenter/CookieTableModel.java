@@ -100,6 +100,17 @@ public class CookieTableModel extends AbstractTableModel {
         }
     }
 
+    public int upsertEntry(CookieEntry entry) {
+        int existingRow = cookieCenter.findByHost(entry.getHost());
+        int row = cookieCenter.upsertEntry(entry);
+        if (existingRow >= 0) {
+            fireTableRowsUpdated(row, row);
+        } else {
+            fireTableRowsInserted(row, row);
+        }
+        return row;
+    }
+
     public void setEntries(List<CookieEntry> newEntries) {
         cookieCenter.setEntries(newEntries);
         fireTableDataChanged();

@@ -1,17 +1,23 @@
 package com.madneal.cookiecenter;
 
+import burp.api.montoya.core.ToolType;
 import burp.api.montoya.http.handler.*;
 import burp.api.montoya.http.message.requests.HttpRequest;
 
 public class CookieInjector implements HttpHandler {
     private final CookieCenter cookieCenter;
+    private final CookieCaptureListener captureListener;
+    private volatile boolean autoCaptureEnabled;
 
-    public CookieInjector(CookieCenter cookieCenter) {
+    public CookieInjector(CookieCenter cookieCenter, CookieCaptureListener captureListener) {
         this.cookieCenter = cookieCenter;
+        this.captureListener = captureListener;
     }
 
     @Override
     public RequestToBeSentAction handleHttpRequestToBeSent(HttpRequestToBeSent requestToBeSent) {
+        captureProxyCookie(requestToBeSent);
+
         CookieEntry matchingEntry = cookieCenter.findMatchingCookie(requestToBeSent.httpService().host());
         if (matchingEntry == null) {
             return RequestToBeSentAction.continueWith(requestToBeSent);
@@ -35,5 +41,22 @@ public class CookieInjector implements HttpHandler {
         }
 
         return request.withAddedHeader("Cookie", cookieValue);
+    }
+
+    public void setAutoCaptureEnabled(boolean autoCaptureEnabled) {
+        this.autoCaptureEnabled = autoCaptureEnabled;
+    }
+
+    private void captureProxyCookie(HttpRequestToBeSent request) {
+        if (!autoCaptureEnabled || captureListener == null || !request.toolSource().isFromTool(ToolType.PROXY)) {
+            return;
+        }
+
+        String cookieValue = request.headerValue("Cookie");
+        if (cookieValue == null || cookieValue.trim().isEmpty()) {
+            return;
+        }
+
+        captureListener.cookieCaptured(request.httpService().host(), cookieValue);
     }
 }

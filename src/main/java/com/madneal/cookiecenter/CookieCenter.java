@@ -62,6 +62,18 @@ public class CookieCenter {
         return -1;
     }
 
+    public synchronized int upsertEntry(CookieEntry entry) {
+        CookieEntry normalizedEntry = normalizedCopyOf(entry);
+        int existingRow = findByHost(normalizedEntry.getHost());
+        if (existingRow >= 0) {
+            entries.set(existingRow, normalizedEntry);
+            return existingRow;
+        }
+
+        entries.add(normalizedEntry);
+        return entries.size() - 1;
+    }
+
     public synchronized CookieEntry findMatchingCookie(String host) {
         String normalizedHost = normalizeHost(host);
         CookieEntry bestMatch = null;
@@ -133,6 +145,9 @@ public class CookieCenter {
         }
         if (normalized.endsWith(".")) {
             normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        while (normalized.startsWith(".")) {
+            normalized = normalized.substring(1);
         }
         return normalized;
     }

@@ -1,6 +1,7 @@
 package com.madneal.cookiecenter;
 
 import burp.api.montoya.MontoyaApi;
+import burp.api.montoya.http.message.Cookie;
 import burp.api.montoya.persistence.PersistedObject;
 
 import javax.swing.*;
@@ -10,19 +11,25 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-public class ConfigPanel extends JPanel {
+public class ConfigPanel extends JPanel implements CookieCaptureListener {
     private final MontoyaApi api;
     private final CookieCenter cookieCenter;
     private final CookieTableModel tableModel;
+    private final CookieInjector cookieInjector;
     private final JTable table;
     private final JLabel statusLabel = new JLabel(" ");
+    private final JCheckBox autoCaptureCheckBox = new JCheckBox("Auto capture from Proxy");
+    private boolean loaded;
 
-    public ConfigPanel(MontoyaApi api, CookieCenter cookieCenter, CookieTableModel tableModel) {
+    public ConfigPanel(MontoyaApi api, CookieCenter cookieCenter, CookieTableModel tableModel, CookieInjector cookieInjector) {
         this.api = api;
         this.cookieCenter = cookieCenter;
         this.tableModel = tableModel;
+        this.cookieInjector = cookieInjector;
         this.table = new JTable(tableModel);
 
         setLayout(new BorderLayout(0, 10));
@@ -50,12 +57,21 @@ public class ConfigPanel extends JPanel {
         importCurlButton.setToolTipText("Extract host and cookie from a curl command");
         importCurlButton.addActionListener(e -> importFromCurl());
 
+        JButton importJarButton = new JButton("Import from Burp Cookie Jar");
+        importJarButton.setToolTipText("Read cookies captured by Burp's session cookie jar");
+        importJarButton.addActionListener(e -> importFromCookieJar());
+
         JButton removeButton = new JButton("Remove");
         removeButton.addActionListener(e -> removeSelectedRows());
 
+        autoCaptureCheckBox.setToolTipText("Automatically update entries from browser requests passing through Proxy");
+        autoCaptureCheckBox.addActionListener(e -> updateAutoCaptureSetting());
+
         buttonPanel.add(addButton);
         buttonPanel.add(importCurlButton);
+        buttonPanel.add(importJarButton);
         buttonPanel.add(removeButton);
+        buttonPanel.add(autoCaptureCheckBox);
 
         JPanel bottomPanel = new JPanel(new BorderLayout());
         statusLabel.setBorder(new EmptyBorder(0, 2, 0, 0));
@@ -67,6 +83,8 @@ public class ConfigPanel extends JPanel {
 
         // Load saved entries
         loadSavedEntries();
+        loadAutoCaptureSetting();
+        loaded = true;
 
         tableModel.addTableModelListener(e -> saveConfiguration());
     }
@@ -81,7 +99,7 @@ public class ConfigPanel extends JPanel {
             String cookie = dialog.getCookie();
 
             if (!host.isEmpty() && !cookie.isEmpty()) {
-                upsertEntry(new CookieEntry(CookieCenter.normalizeHost(host), cookie, true, dialog.isIncludeSubdomains()));
+                upsertEntry(new CookieEntry(CookieCenter.normalizeHost(host), cookie, true, dialog.isIncludeSubdomains()), true);
             }
         }
     }
@@ -101,6 +119,7 @@ public class ConfigPanel extends JPanel {
             settings.setString("enabled_" + i, Boolean.toString(entry.isEnabled()));
             settings.setString("subdomains_" + i, Boolean.toString(entry.isIncludeSubdomains()));
         }
+        settings.setString("auto_capture_proxy", Boolean.toString(autoCaptureCheckBox.isSelected()));
 
         statusLabel.setText("Saved " + entries.size() + " cookie entr" + (entries.size() == 1 ? "y" : "ies"));
     }
@@ -120,7 +139,7 @@ public class ConfigPanel extends JPanel {
 
             if (!host.isEmpty() && !cookie.isEmpty()) {
                 String normalizedHost = CookieCenter.normalizeHost(host);
-                boolean imported = upsertEntry(new CookieEntry(normalizedHost, cookie, true, true));
+                boolean imported = upsertEntry(new CookieEntry(normalizedHost, cookie, true, true), true);
                 if (!imported) {
                     return;
                 }
@@ -132,6 +151,70 @@ public class ConfigPanel extends JPanel {
                         JOptionPane.INFORMATION_MESSAGE);
             }
         }
+    }
+
+    private void importFromCookieJar() {
+        List<Cookie> cookies = api.http().cookieJar().cookies();
+        Map<String, LinkedHashMap<String, String>> cookiesByHost = new LinkedHashMap<>();
+        Map<String, Boolean> subdomainsByHost = new LinkedHashMap<>();
+
+        for (Cookie cookie : cookies) {
+            String domain = cookie.domain();
+            String host = CookieCenter.normalizeHost(domain);
+            if (host.isEmpty() || cookie.name() == null || cookie.name().trim().isEmpty()) {
+                continue;
+            }
+            if (cookie.value() == null || cookie.value().trim().isEmpty()) {
+                continue;
+            }
+
+            LinkedHashMap<String, String> hostCookies = cookiesByHost.computeIfAbsent(host, ignored -> new LinkedHashMap<>());
+            hostCookies.put(cookie.name().trim(), cookie.value().trim());
+            subdomainsByHost.put(host, subdomainsByHost.getOrDefault(host, false) || domain.startsWith("."));
+        }
+
+        int imported = 0;
+        for (Map.Entry<String, LinkedHashMap<String, String>> entry : cookiesByHost.entrySet()) {
+            String cookieHeader = buildCookieHeader(entry.getValue());
+            if (!cookieHeader.isEmpty()) {
+                upsertEntry(new CookieEntry(entry.getKey(), cookieHeader, true, subdomainsByHost.getOrDefault(entry.getKey(), true)), false);
+                imported++;
+            }
+        }
+
+        if (imported == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Burp Cookie Jar does not contain importable cookies yet.",
+                    "No Cookies Found",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        statusLabel.setText("Imported " + imported + " host entr" + (imported == 1 ? "y" : "ies") + " from Burp Cookie Jar");
+        JOptionPane.showMessageDialog(this,
+                "Imported or updated " + imported + " host entr" + (imported == 1 ? "y" : "ies") + " from Burp Cookie Jar.",
+                "Import Successful",
+                JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    @Override
+    public void cookieCaptured(String host, String cookieValue) {
+        String normalizedHost = CookieCenter.normalizeHost(host);
+        String normalizedCookie = cookieValue == null ? "" : cookieValue.trim();
+        if (normalizedHost.isEmpty() || normalizedCookie.isEmpty()) {
+            return;
+        }
+
+        SwingUtilities.invokeLater(() -> {
+            int existingRow = cookieCenter.findByHost(normalizedHost);
+            CookieEntry existingEntry = cookieCenter.getEntry(existingRow);
+            if (existingEntry != null && normalizedCookie.equals(existingEntry.getCookieValue())) {
+                return;
+            }
+
+            upsertEntry(new CookieEntry(normalizedHost, normalizedCookie, true, true), false);
+            statusLabel.setText("Auto captured cookie for " + normalizedHost);
+        });
     }
 
     private void loadSavedEntries() {
@@ -158,6 +241,13 @@ public class ConfigPanel extends JPanel {
 
         tableModel.setEntries(entries);
         statusLabel.setText("Loaded " + entries.size() + " cookie entr" + (entries.size() == 1 ? "y" : "ies"));
+    }
+
+    private void loadAutoCaptureSetting() {
+        PersistedObject settings = api.persistence().extensionData();
+        boolean autoCapture = getBooleanSetting(settings, "auto_capture_proxy", false);
+        autoCaptureCheckBox.setSelected(autoCapture);
+        cookieInjector.setAutoCaptureEnabled(autoCapture);
     }
 
     private void configureColumns() {
@@ -187,24 +277,44 @@ public class ConfigPanel extends JPanel {
         }
     }
 
-    private boolean upsertEntry(CookieEntry entry) {
+    private boolean upsertEntry(CookieEntry entry, boolean confirmReplace) {
         int existingRow = cookieCenter.findByHost(entry.getHost());
         if (existingRow >= 0) {
-            int choice = JOptionPane.showConfirmDialog(this,
-                    "A cookie entry for " + entry.getHost() + " already exists. Replace it?",
-                    "Replace Cookie",
-                    JOptionPane.YES_NO_OPTION);
-            if (choice != JOptionPane.YES_OPTION) {
-                return false;
+            if (confirmReplace) {
+                int choice = JOptionPane.showConfirmDialog(this,
+                        "A cookie entry for " + entry.getHost() + " already exists. Replace it?",
+                        "Replace Cookie",
+                        JOptionPane.YES_NO_OPTION);
+                if (choice != JOptionPane.YES_OPTION) {
+                    return false;
+                }
             }
-            tableModel.updateEntry(existingRow, entry);
-            selectModelRow(existingRow);
+            int row = tableModel.upsertEntry(entry);
+            selectModelRow(row);
             return true;
         }
 
-        tableModel.addEntry(entry);
-        selectModelRow(tableModel.getRowCount() - 1);
+        int row = tableModel.upsertEntry(entry);
+        selectModelRow(row);
         return true;
+    }
+
+    private void updateAutoCaptureSetting() {
+        cookieInjector.setAutoCaptureEnabled(autoCaptureCheckBox.isSelected());
+        if (loaded) {
+            saveConfiguration();
+        }
+    }
+
+    private String buildCookieHeader(LinkedHashMap<String, String> cookies) {
+        StringBuilder builder = new StringBuilder();
+        for (Map.Entry<String, String> cookie : cookies.entrySet()) {
+            if (builder.length() > 0) {
+                builder.append("; ");
+            }
+            builder.append(cookie.getKey()).append("=").append(cookie.getValue());
+        }
+        return builder.toString();
     }
 
     private void selectModelRow(int modelRow) {

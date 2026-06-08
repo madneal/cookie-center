@@ -19,9 +19,10 @@ public class BurpExtender implements BurpExtension {
 
         cookieCenter = new CookieCenter();
         cookieTableModel = new CookieTableModel(cookieCenter);
-        configPanel = new ConfigPanel(api, cookieCenter, cookieTableModel);
+        CookieInjector cookieInjector = new CookieInjector(cookieCenter, (host, cookieValue) ->
+                configPanel.cookieCaptured(host, cookieValue));
+        configPanel = new ConfigPanel(api, cookieCenter, cookieTableModel, cookieInjector);
 
-        HttpHandler cookieInjector = new CookieInjector(cookieCenter);
         api.http().registerHttpHandler(cookieInjector);
 
         api.userInterface().registerSuiteTab("Cookie Center", configPanel);
